@@ -1,0 +1,73 @@
+rules:
+  - id: no-html-injection
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: 'Injection de HTML interdite : construire les éléments avec ui/dom.ts (textContent).'
+    pattern-either:
+      - pattern: $EL.innerHTML = ...
+      - pattern: $EL.outerHTML = ...
+      - pattern: $EL.insertAdjacentHTML(...)
+      - pattern: $EL["innerHTML"] = ...
+      - pattern: $EL["outerHTML"] = ...
+      - pattern: document.write(...)
+      - pattern: document.writeln(...)
+  - id: no-dynamic-code
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: "Exécution de code construit à l'exécution interdite."
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+      - pattern: Function(...)
+      - pattern: setTimeout("...", ...)
+      - pattern: setInterval("...", ...)
+      - pattern: setTimeout($X + $Y, ...)
+  - id: no-network
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: 'Le jeu ne communique avec aucun service : réseau interdit.'
+    paths:
+      exclude:
+        - '**/sw.ts'
+    pattern-either:
+      - pattern: fetch(...)
+      - pattern: $O.fetch(...)
+      - pattern: new XMLHttpRequest(...)
+      - pattern: new WebSocket(...)
+      - pattern: new EventSource(...)
+      - pattern: $N.sendBeacon(...)
+  - id: no-network-in-worker
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: "Seul le téléchargement de l'installation et de la mise à jour consentie peut utiliser fetch."
+    paths:
+      include:
+        - '**/sw.ts'
+    pattern-either:
+      - pattern: new XMLHttpRequest(...)
+      - pattern: new WebSocket(...)
+      - pattern: new EventSource(...)
+      - pattern: $N.sendBeacon(...)
+      - pattern: $O.fetch(...)
+  - id: no-permission-api
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: 'API à permission interdite (seules vibration, écran allumé, stockage persistant et fichiers sont admis).'
+    pattern-either:
+      - pattern: new Notification(...)
+      - pattern: $N.geolocation
+      - pattern: $N.mediaDevices
+      - pattern: $N.clipboard
+      - pattern: $N.contacts
+      - pattern: $N.bluetooth
+      - pattern: $N.usb
+  - id: no-console
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: "Rien n'est écrit dans la console."
+    pattern: console.$METHOD(...)
+  - id: no-absolute-url
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: 'URL absolue interdite : les chemins sont relatifs.'
+    pattern-regex: '["''`]https?://'

@@ -1,0 +1,1044 @@
+:root {
+  color-scheme: dark;
+  --background: #0b1026;
+  --surface: #1b2250;
+  --text: #f5f7ff;
+  --text-secondary: #b8c0e8;
+  --accent: #ffd84d;
+  --border: #7c8ae6;
+  --focus: #ffffff;
+  --error: #ffa3a3;
+  --gap: 8px;
+  /* 1 mm en pixels CSS : même valeur que PX_PER_MM de src/core/rules.ts (vérifié par un test). */
+  --mm: 6.3px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--background);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 1.125rem;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+.refusal {
+  margin: 1.5rem;
+}
+
+.menu {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: calc(4 * var(--gap));
+  flex: 1 1 auto;
+  padding: calc(2 * var(--gap)) calc(4 * var(--gap));
+}
+
+.menu-main {
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--gap));
+  flex: 1 1 0;
+}
+
+.menu-title {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.menu-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  flex: 1 1 0;
+}
+
+.button {
+  display: block;
+  width: 100%;
+  min-height: calc(10 * var(--mm));
+  padding: 0 calc(2 * var(--gap));
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.button-primary {
+  min-height: calc(16 * var(--mm));
+  font-size: 1.5rem;
+  color: var(--background);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.button-back {
+  width: auto;
+}
+
+.screen {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: calc(2 * var(--gap));
+  padding: calc(2 * var(--gap)) calc(4 * var(--gap));
+  overflow-y: auto;
+}
+
+.screen-header {
+  display: flex;
+  align-items: center;
+  gap: calc(2 * var(--gap));
+}
+
+.screen-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.mode-button {
+  display: flex;
+  align-items: center;
+  gap: calc(2 * var(--gap));
+  padding-block: var(--gap);
+  text-align: left;
+}
+
+.mode-name {
+  display: flex;
+  flex: 0 0 11rem;
+  align-items: center;
+  gap: var(--gap);
+}
+
+.mode-lock {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+}
+
+.mode-locked {
+  color: var(--text-secondary);
+  border-style: dashed;
+}
+
+.mode-rule {
+  flex: 1 1 auto;
+  font-weight: 400;
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+/* Partie : le conteneur remplit la zone sûre ; JS fixe --hud, --arrow-column et la taille de la grille. */
+.game {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hud {
+  display: flex;
+  flex: 0 0 var(--hud);
+  align-items: center;
+  justify-content: space-between;
+  /* Marge d'écran en haut et à droite : le bouton pause ne touche pas le bord (coins arrondis). */
+  padding: var(--margin) var(--margin) 0 calc(2 * var(--gap));
+}
+
+.hud-score {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-center {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding-inline: var(--gap);
+}
+
+.hud-info {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+}
+
+/* Constellation à tracer : la couleur attendue est entourée d'un cadre épais, celles déjà tracées sont atténuées. */
+.hud-star {
+  display: inline-flex;
+  padding: 2px;
+  border: 3px solid transparent;
+  border-radius: 8px;
+}
+
+.hud-star.is-next {
+  border-color: var(--focus);
+}
+
+.hud-star.is-done {
+  opacity: 0.45;
+}
+
+.hud-pause {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: calc(1.5 * var(--pause-button));
+  height: var(--pause-button);
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.board {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.field {
+  position: relative;
+  line-height: 0;
+}
+
+.field canvas {
+  display: block;
+}
+
+.arrow-column {
+  display: flex;
+  flex: 0 0 var(--arrow-column);
+  flex-direction: column;
+  align-self: stretch;
+  justify-content: center;
+  gap: var(--gap);
+  min-width: 0;
+  padding: var(--arrow-pad);
+}
+
+.arrow {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: var(--arrow-min);
+  max-height: var(--arrow-max);
+  overflow: hidden;
+  font: inherit;
+  /* 16 px au moins (05 § 6), quelle que soit la taille de base. */
+  font-size: max(16px, 0.89rem);
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  touch-action: none;
+}
+
+.arrow-glyph {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+/* Retour visuel au toucher : couleurs inversées et contour épais, pas seulement un changement de teinte. */
+.arrow.is-pressed {
+  color: var(--background);
+  background: var(--text);
+  border-width: 5px;
+}
+
+.arrow:focus-visible,
+.hud-pause:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.countdown {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: var(--gap) calc(3 * var(--gap));
+  text-align: center;
+  line-height: 1.4;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.countdown[hidden] {
+  display: none;
+}
+
+.countdown-number {
+  margin: 0;
+  font-size: 4.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.countdown-hint {
+  margin: 0;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(11 16 38 / 80%);
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--gap));
+  min-width: min(24rem, 90%);
+  max-height: 95%;
+  padding: calc(3 * var(--gap));
+  overflow-y: auto;
+  text-align: center;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+}
+
+.dialog h2,
+.dialog p {
+  margin: 0;
+}
+
+.dialog h2 {
+  font-size: 1.5rem;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: calc(2 * var(--gap));
+}
+
+.end {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-around;
+  gap: calc(4 * var(--gap));
+  padding: calc(2 * var(--gap)) calc(4 * var(--gap));
+  overflow-y: auto;
+}
+
+.end-result,
+.end-side {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.end-result p {
+  margin: var(--gap) 0 0;
+}
+
+.end-reason {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.end-score {
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.end-record {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.end-unlocks {
+  margin: var(--gap) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.end-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* Le champ et « Valider » partagent la première ligne : avec le clavier ouvert (hauteur réduite), les deux restent visibles ensemble. À texte très agrandi, « Valider » passe sous le champ. */
+.name-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--gap);
+  margin-bottom: calc(2 * var(--gap));
+}
+
+.name-block > .name-field {
+  flex: 1 1 7rem;
+  min-width: 0;
+}
+
+.name-block > .button {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 0 calc(3 * var(--gap));
+}
+
+.name-block > .name-hint {
+  flex: 1 0 100%;
+  order: 1;
+}
+
+.name-block > .name-saved {
+  flex: 1 0 100%;
+}
+
+.name-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--gap) / 2);
+}
+
+.name-label {
+  font-weight: 700;
+}
+
+.name-input {
+  width: 100%;
+  min-height: calc(10 * var(--mm));
+  padding: 0 calc(2 * var(--gap));
+  font: inherit;
+  color: var(--text);
+  background: var(--background);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+}
+
+.name-input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.name-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap);
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.name-hint p {
+  margin: 0;
+}
+
+.name-reminder {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.name-reminder[hidden] {
+  display: none;
+}
+
+.name-counter {
+  font-variant-numeric: tabular-nums;
+}
+
+.name-saved {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* E7 Records : rangs 1 à 5 à gauche, 6 à 10 à droite. */
+.button-icon {
+  width: calc(9 * var(--mm));
+  padding: 0;
+  font-size: 1.5rem;
+}
+
+.records-mode {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 1.5rem;
+  text-align: center;
+}
+
+.records-board {
+  flex: 1 1 auto;
+}
+
+.records-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(5, auto);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap) calc(4 * var(--gap));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.records-row {
+  display: flex;
+  gap: var(--gap);
+  align-items: baseline;
+}
+
+.record-rank {
+  flex: 0 0 2.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.record-score {
+  font-variant-numeric: tabular-nums;
+}
+
+.record-date {
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.records-empty {
+  margin: calc(4 * var(--gap)) 0;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* E13 : boîte de dialogue affichée avant le menu. */
+.notice {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  padding: calc(2 * var(--gap));
+}
+
+/* Message passager en bas d'écran. */
+.toast {
+  position: fixed;
+  /* Marge d'écran en plus des zones sûres : le message ne passe pas sous la barre d'accueil. */
+  right: calc(var(--gap) + env(safe-area-inset-right));
+  bottom: calc(var(--gap) + env(safe-area-inset-bottom));
+  left: calc(var(--gap) + env(safe-area-inset-left));
+  z-index: 10;
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: var(--gap) calc(2 * var(--gap));
+  text-align: center;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+}
+
+/* E12 : en orientation verticale, seul ce message est affiché. */
+.rotate-notice {
+  display: none;
+}
+
+@media (orientation: portrait) {
+  #app {
+    display: none;
+  }
+
+  .rotate-notice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(2 * var(--gap));
+    min-height: 100dvh;
+    padding: calc(4 * var(--gap));
+    font-size: 1.5rem;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .rotate-notice p {
+    margin: 0;
+  }
+
+  .rotate-icon {
+    width: 3rem;
+    height: 5rem;
+    border: 4px solid var(--text);
+    border-radius: 8px;
+    transform: rotate(90deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Erreur passagère : icône « ! » + texte + code, jamais la couleur seule (05 § 6). */
+.toast-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap);
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.toast-icon {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-weight: 700;
+  line-height: 1.3rem;
+  text-align: center;
+  border: 2px solid currentcolor;
+  border-radius: 50%;
+}
+
+/* E9 Réglages : la commande à gauche, les sons à droite. */
+.settings-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(4 * var(--gap));
+  align-items: start;
+}
+
+.settings-section h2 {
+  margin: 0 0 var(--gap);
+  font-size: 1.25rem;
+}
+
+.choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: calc(2 * var(--gap));
+  padding-block: var(--gap);
+  text-align: left;
+}
+
+.choice.is-selected {
+  border-color: var(--accent);
+  border-width: 4px;
+}
+
+.choice-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.choice-help {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.choice-label {
+  flex: 1 1 auto;
+}
+
+.choice-state {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* Pastille de la commande et case des interrupteurs : pleines ou vides, jamais distinguées par la couleur seule. */
+.choice-dot,
+.choice-box {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 3px solid var(--text);
+}
+
+.choice-dot {
+  border-radius: 50%;
+}
+
+.choice-box {
+  border-radius: 4px;
+}
+
+.choice.is-selected .choice-dot::after {
+  width: 0.6rem;
+  height: 0.6rem;
+  background: var(--accent);
+  border-radius: 50%;
+  content: '';
+}
+
+.choice-switch.is-selected .choice-box::after {
+  color: var(--accent);
+  font-weight: 700;
+  line-height: 1;
+  content: '✓';
+}
+
+.choice-note {
+  margin: calc(var(--gap) / 2) 0 0;
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+/* E1 : bandeau d'installation et repère de mise à jour. */
+.install-banner {
+  display: flex;
+  align-items: center;
+  gap: calc(2 * var(--gap));
+}
+
+.install-banner[hidden] {
+  display: none;
+}
+
+.install-banner p {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--text-secondary);
+}
+
+.install-banner .button {
+  flex: 1 1 0;
+  min-width: 0;
+  /* 9 mm au moins (ENF-12), arrondis au pixel supérieur : 57 px. */
+  min-height: calc(9 * var(--mm) + 1px);
+  padding-inline: var(--gap);
+}
+
+.menu-badge {
+  margin-left: var(--gap);
+  padding: 0 var(--gap);
+  font-size: 1rem;
+  color: var(--background);
+  background: var(--accent);
+  border-radius: 8px;
+}
+
+/* E9 : entrée « À propos » ; E10 : version, état hors ligne, mise à jour ; E14 : étapes d'installation. */
+.choice-about-group {
+  margin-top: var(--gap);
+}
+
+.choice-about {
+  justify-content: space-between;
+  text-align: left;
+}
+
+.choice-arrow {
+  margin-left: auto;
+}
+
+.about-identity p,
+.install-body p {
+  margin: 0;
+}
+
+.about-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.about-heading {
+  margin: 0 0 var(--gap);
+  font-size: 1.25rem;
+}
+
+.about-update {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap);
+}
+
+.about-update .button {
+  width: auto;
+  padding-inline: calc(4 * var(--gap));
+}
+
+/* Bouton d'apparence de lien : texte souligné, cible tactile de 10 mm. */
+.button-link {
+  color: var(--accent);
+  text-decoration: underline;
+  background: none;
+  border-color: transparent;
+}
+
+.about-help {
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.about-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap);
+  color: var(--error);
+}
+
+.install-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap);
+}
+
+.install-body .button {
+  width: auto;
+  padding-inline: calc(4 * var(--gap));
+}
+
+.install-section h2 {
+  margin: 0 0 var(--gap);
+  font-size: 1.25rem;
+}
+
+.install-steps {
+  margin: 0 0 var(--gap);
+  padding-left: calc(3 * var(--gap));
+}
+
+/* E11 : créer et restaurer une sauvegarde ; la boîte de dialogue recouvre tout l'écran. */
+.save {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.save-actions {
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--gap));
+}
+
+.save-row {
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--gap));
+}
+
+.save-row .button {
+  flex: 0 0 16rem;
+  width: auto;
+  padding-block: var(--gap);
+}
+
+.save-row p,
+.save-note {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.save-help {
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.save-overlay {
+  position: fixed;
+  z-index: 10;
+}
+
+/* E8 Skins : quatre onglets, une ligne par skin avec son aperçu, son nom et son état écrit. */
+.skins-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--gap);
+}
+
+.skins-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: var(--gap);
+}
+
+.skins-tab.is-selected {
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 4px;
+  border-color: var(--accent);
+}
+
+.skins-panel[hidden] {
+  display: none;
+}
+
+.skin-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+.skin-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--gap);
+}
+
+.skin-choice {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: calc(2 * var(--gap));
+  width: auto;
+  min-width: 0;
+  padding-block: var(--gap);
+  text-align: left;
+}
+
+.skin-choice.is-chosen {
+  border-color: var(--accent);
+  border-width: 4px;
+}
+
+.skin-choice.is-locked {
+  color: var(--text-secondary);
+  border-style: dashed;
+}
+
+.skin-choice.is-highlighted {
+  color: var(--text);
+  border-color: var(--accent);
+  border-style: solid;
+}
+
+.skin-preview {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 48px;
+  border-radius: 8px;
+}
+
+.skin-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.skin-state,
+.skin-detail {
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.skin-marker {
+  margin-right: calc(var(--gap) / 2);
+}
+
+.skin-remove {
+  flex: 0 0 auto;
+  width: auto;
+  padding-inline: calc(3 * var(--gap));
+}
+
+.skin-remove[hidden] {
+  display: none;
+}
