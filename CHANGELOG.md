@@ -2,6 +2,16 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; les versions suivent le [versionnage sémantique](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Corrigé
+
+- iPhone : après une mise à jour installée, « À propos » affiche de nouveau « Prêt à jouer hors ligne » (la page se recharge une fois la nouvelle version activée).
+- iPhone : une nouvelle version détectée pendant une partie est proposée au retour au menu, même quand le navigateur tarde à rendre visible la version notée.
+- iPhone : à l'ouverture connectée, le jeu ne lance plus sa propre vérification de version en plus de celle du navigateur ; l'agent de service n'est plus téléchargé deux fois (10 Ko au plus par ouverture, ENF-09). Une version qui n'est plus publiée cesse toujours d'être proposée.
+- Champ « Votre nom » : l'indication de la touche Entrée du clavier (« OK ») est donnée sur tous les navigateurs.
+- Menu principal : titre (32 px) et texte du bandeau d'installation (16 px) aux tailles de la charte ; le menu tient dans l'écran en paysage avec les polices courantes.
+
 ## [1.0.0] - 2026-11-08
 
 Première version de Serpent Cosmique.

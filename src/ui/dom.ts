@@ -3,7 +3,7 @@
  * jamais par du HTML, et les attributs sont limités à une liste fermée.
  */
 
-const ALLOWED_ATTRIBUTES = /^(role|type|id|tabindex|accept|aria-[a-z]+)$/;
+const ALLOWED_ATTRIBUTES = /^(role|type|id|tabindex|accept|enterkeyhint|aria-[a-z]+)$/;
 
 export interface ElementOptions {
   className?: string;

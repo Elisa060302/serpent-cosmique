@@ -86,6 +86,14 @@ test('ct_01_menu_principal_en_paysage : le titre n’est pas en majuscules conti
   const title = page.getByRole('heading', { level: 1 });
   await expect(title).toHaveText('Serpent Cosmique');
   await expect(title).toHaveCSS('text-transform', 'none');
+  // Titre du jeu : 32 px gras (05 § 7.2).
+  const style = await title.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { size: Number.parseFloat(computed.fontSize), weight: Number(computed.fontWeight) };
+  });
+  expect(style.size).toBeGreaterThanOrEqual(31.5);
+  expect(style.size).toBeLessThanOrEqual(32.5);
+  expect(style.weight).toBeGreaterThanOrEqual(700);
 });
 
 test('ct_01_menu_principal_en_paysage : zones sûres non nulles, la page ne défile pas', async ({

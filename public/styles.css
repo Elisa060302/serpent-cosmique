@@ -56,16 +56,19 @@ body {
   padding: calc(2 * var(--gap)) calc(4 * var(--gap));
 }
 
+/* La hauteur du menu ne doit pas dépendre de la police du téléphone : la colonne de gauche (titre et bandeau, dont
+   le texte passe à la ligne selon la police) garde de la marge sous la hauteur de l'écran en paysage. */
 .menu-main {
   display: flex;
   flex-direction: column;
-  gap: calc(2 * var(--gap));
+  gap: var(--gap);
   flex: 1 1 0;
 }
 
+/* 32 px (05 § 7.2), proportionnel à la taille du texte choisie par le joueur. */
 .menu-title {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.78rem;
 }
 
 .menu-side {
@@ -800,7 +803,8 @@ body {
   flex: 1 1 0;
   min-width: 0;
   margin: 0;
-  font-size: 1rem;
+  /* Texte secondaire : 16 px (05 § 7.2). */
+  font-size: max(16px, 0.89rem);
   line-height: 1.2;
   color: var(--text-secondary);
 }

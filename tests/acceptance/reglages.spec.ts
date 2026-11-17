@@ -72,6 +72,8 @@ test('ct_46_reglages : valeurs par défaut au premier lancement, état écrit, a
 test('ct_46_reglages : toucher la ligne bascule le réglage, texte et état suivent, enregistré aussitôt (RG-62, RG-83)', async ({
   page,
 }) => {
+  // Téléphone qui sait vibrer : sans cette API (iPhone, WebKit), le réglage est grisé (RG-63, vérifié à part).
+  await installVibrationProbe(page);
   await openGame(page);
   await openSettings(page);
   await toggle(page, 'Musique').tap();

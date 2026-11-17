@@ -16,6 +16,7 @@ import {
   startMode,
   watchProblems,
 } from './support/jeu.ts';
+import { TOAST_MS } from '../../src/core/rules.ts';
 import { SEED_DATE, progressWith, seedStorage } from './support/sauvegarde.ts';
 
 /** Mots anglais usuels qui ne doivent jamais apparaître dans le jeu (mots entiers, hors orthographe française). */
@@ -67,10 +68,26 @@ async function readableTexts(page: Page): Promise<string> {
     const transient = [
       ...document.querySelectorAll<HTMLElement>('body > .toast, body > [role="status"]'),
     ].filter((element) => element.textContent.trim() === 'Prêt à jouer hors ligne');
+    // Pour la même raison, l'état du hors ligne dans « À propos » passe de « Préparation… » à « Prêt… » à un instant
+    // qui dépend de la machine : il doit être l'un de ses deux textes français, et il est relevé sous une marque
+    // neutre pour comparer les écrans d'un contexte à l'autre.
+    const offlineStates = [
+      'Préparation du mode hors ligne… Restez connecté.',
+      '✔ Prêt à jouer hors ligne',
+    ];
+    const offline = [...document.querySelectorAll<HTMLElement>('.about-offline')];
+    const offlineText = offline
+      .map((element) =>
+        offlineStates.includes(element.textContent.trim())
+          ? '[état du hors ligne]'
+          : element.textContent.trim(),
+      )
+      .join('\n');
+    transient.push(...offline);
     for (const element of transient) element.style.display = 'none';
     const text = document.body.innerText;
     for (const element of transient) element.style.display = '';
-    const parts = [document.title, text];
+    const parts = [document.title, text, offlineText];
     for (const element of document.querySelectorAll('[aria-label], [title], img[alt]')) {
       parts.push(
         element.getAttribute('aria-label') ??
@@ -103,6 +120,7 @@ async function walkAllScreens(page: Page): Promise<Record<string, string>> {
     }),
   });
   await openGame(page, { seed: 1 });
+  await expect(page.getByRole('button', { name: 'Jouer', exact: true })).toBeVisible();
   screens['menu'] = await readableTexts(page);
 
   await page.getByRole('button', { name: 'Jouer', exact: true }).tap();
@@ -236,7 +254,12 @@ test('ct_87_langue_et_formats : tous les écrans en français, dates JJ/MM/AAAA,
 test('ct_83_temps_de_navigation : démarrage en 3 s, lancement d’une partie en 1 s, changement d’écran en 0,5 s — cinq mesures, processeur ralenti 4 fois, cache chaud', async ({
   page,
   context,
+  browserName,
 }) => {
+  test.skip(
+    browserName !== 'chromium',
+    'Le ralentissement du processeur passe par le protocole de débogage, que Playwright ne fournit que pour Chromium.',
+  );
   // Cache chaud : une première ouverture installe le mode hors ligne.
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Jouer' })).toBeVisible();
@@ -272,7 +295,12 @@ test('ct_83_temps_de_navigation : démarrage en 3 s, lancement d’une partie en
 
 test('ct_84_regularite_des_pas : en mode Zen pendant 30 s, au moins 50 images par seconde et pas réguliers (mesure indicative sur poste)', async ({
   page,
+  browserName,
 }) => {
+  test.skip(
+    browserName !== 'chromium',
+    'WebKit sans affichage (Playwright sous Linux) cadence ses images par une minuterie arrondie à la milliseconde, avec des à-coups de plusieurs dizaines de millisecondes même sur une page vide : la mesure ne dirait rien du jeu.',
+  );
   test.setTimeout(90_000);
   await page.addInitScript(() => {
     const state = { frames: 0, start: 0, last: 0, steps: [] as number[], row: '' };
@@ -332,16 +360,55 @@ test('ct_84_regularite_des_pas : en mode Zen pendant 30 s, au moins 50 images pa
   expect(Math.max(...intervals)).toBeLessThanOrEqual(2 * nominal);
 });
 
-/** Mémoire de script utilisée par la page, après un ramasse-miettes (protocole de débogage de Chromium). */
+/**
+ * Mémoire de script utilisée par la page (protocole de débogage de Chromium) : moyenne de trois relevés, chacun
+ * pris après deux ramasse-miettes complets, pour ne pas compter ce qu'un seul passage n'a pas encore libéré.
+ */
 async function heapBytes(page: Page): Promise<number> {
   const client = await page.context().newCDPSession(page);
   try {
-    await client.send('HeapProfiler.collectGarbage');
-    const usage = (await client.send('Runtime.getHeapUsage')) as { usedSize: number };
-    return usage.usedSize;
+    let total = 0;
+    for (let sample = 0; sample < 3; sample += 1) {
+      await client.send('HeapProfiler.collectGarbage');
+      await client.send('HeapProfiler.collectGarbage');
+      total += ((await client.send('Runtime.getHeapUsage')) as { usedSize: number }).usedSize;
+    }
+    return total / 3;
   } finally {
     await client.detach();
   }
+}
+
+const ALL_MODES = [
+  'Classique',
+  'Contre la montre',
+  "Champ d'astéroïdes",
+  'Trou noir',
+  'Bonus et pièges',
+  'Zen',
+  'Constellation',
+];
+
+/** Une sauvegarde créée puis restaurée aussitôt, retour au menu. */
+async function saveAndRestore(page: Page): Promise<void> {
+  await openSave(page);
+  const bytes = Buffer.from(await downloadedText(await createBackupDownload(page)));
+  await chooseFile(page, { bytes });
+  await page.getByRole('dialog').getByRole('button', { name: 'Fusionner' }).tap();
+  await expect(page.locator('.toast')).toContainText('Restauration terminée');
+  await page.getByRole('button', { name: '‹ Retour' }).tap();
+  // Le message passager s'efface de lui-même : selon la police, sur deux lignes, il recouvre « Sauvegarde ».
+  await runFor(page, TOAST_MS);
+  await expect(page.locator('.toast')).toHaveCount(0);
+}
+
+/** Une partie du mode, jouée `ms` millisecondes après le compte à rebours, puis quittée. */
+async function playMode(page: Page, mode: string, ms: number): Promise<void> {
+  await startMode(page, mode);
+  await runFor(page, 50);
+  await skipCountdown(page);
+  await runFor(page, ms);
+  await leaveGame(page);
 }
 
 /** Quitte la partie en cours (abandon si elle n'est pas finie) et revient au menu. */
@@ -374,14 +441,23 @@ test('ct_89_endurance_automatisee : 50 pauses, 20 sauvegardes puis restaurations
   });
   await openGame(page, { seed: 1 });
 
-  // Une première série sert d'état de référence : les caches et les polices sont déjà chargés.
+  // État de référence, au menu : chaque chemin du test a déjà servi une fois (code compilé, caches et polices
+  // chargés), si bien que seule une croissance due à la répétition est mesurée.
   await startMode(page, 'Zen');
   await runFor(page, 50);
   await skipCountdown(page);
-  await runFor(page, 2000);
+  await page.getByRole('button', { name: 'Pause', exact: true }).tap();
+  await page.getByRole('button', { name: 'Reprendre' }).tap();
+  await skipCountdown(page);
+  await leaveGame(page);
+  await saveAndRestore(page);
+  for (const mode of ALL_MODES) await playMode(page, mode, 2000);
   const baseline = await heapBytes(page);
 
   // 50 cycles pause / reprise (le Zen ne se perd jamais).
+  await startMode(page, 'Zen');
+  await runFor(page, 50);
+  await skipCountdown(page);
   for (let cycle = 0; cycle < 50; cycle += 1) {
     await page.getByRole('button', { name: 'Pause', exact: true }).tap();
     await runFor(page, 500);
@@ -392,31 +468,10 @@ test('ct_89_endurance_automatisee : 50 pauses, 20 sauvegardes puis restaurations
   await leaveGame(page);
 
   // 20 sauvegardes, chacune restaurée aussitôt.
-  for (let round = 0; round < 20; round += 1) {
-    await openSave(page);
-    const bytes = Buffer.from(await downloadedText(await createBackupDownload(page)));
-    await chooseFile(page, { bytes });
-    await page.getByRole('dialog').getByRole('button', { name: 'Fusionner' }).tap();
-    await expect(page.locator('.toast')).toContainText('Restauration terminée');
-    await page.getByRole('button', { name: '‹ Retour' }).tap();
-  }
+  for (let round = 0; round < 20; round += 1) await saveAndRestore(page);
 
   // Une partie de chaque mode, d'une demi-minute de jeu.
-  for (const mode of [
-    'Classique',
-    'Contre la montre',
-    "Champ d'astéroïdes",
-    'Trou noir',
-    'Bonus et pièges',
-    'Zen',
-    'Constellation',
-  ]) {
-    await startMode(page, mode);
-    await runFor(page, 50);
-    await skipCountdown(page);
-    await runFor(page, 30_000);
-    await leaveGame(page);
-  }
+  for (const mode of ALL_MODES) await playMode(page, mode, 30_000);
 
   const final = await heapBytes(page);
   test.info().annotations.push({

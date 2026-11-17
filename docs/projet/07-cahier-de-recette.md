@@ -5,6 +5,7 @@
 | 1.3 | 2026-11-07 | 02 v1.5, 03, 04 (EXS-01 à EXS-20), 05, tests existants du projet |
 | 1.4 | 2026-11-08 | CT-08 aligné sur la décision de l'équipe projet (aire pleine en Zen : toutes les cases occupées, corps traversable) ; noms des tests ajoutés (CT-70, 78, 83, 84) |
 | 1.5 | 2026-11-09 | CT-63 et CT-91 réécrits pour se rejouer avec le seul dépôt (`git`, `grep`, `npm`) ; vocabulaire du déroulement du projet remplacé par « développement » |
+| 1.6 | 2026-11-17 | WebKit exécuté sur le poste (révision 2359) : CT-69 réécrit (exécution, exclusions WebKit et leur compensation) ; exclusions WebKit indiquées dans CT-08, 10, 65, 67, 68, 83, 84, 89, 104 ; contrôles sur iPhone réel ajoutés à CT-94 (rechargement pendant la première installation) et à CT-115 (volume de la vérification de version, coupure pendant la mise à jour) ; mesure de CT-104 étendue à la vérification de version différée ; taille du titre vérifiée par CT-01 |
 
 ## 1. Stratégie de test
 
@@ -12,7 +13,7 @@
 | Niveau | Responsable | Outil | Contenu |
 |---|---|---|---|
 | Unitaire | équipe de développement | `node:test` (Node 22), couverture de `src/core` d'au moins 80 % | règles du moteur, des 7 modes, commandes, couleurs, ordonnanceur, records, skins, progression, validateur, fusion (03 § 9) |
-| Acceptation (CT) | recette interne | Playwright 1.63.0 sur Chromium (et WebKit en CI), dossier `tests/acceptance/` ; `node:test` sur l'API du moteur pour les CT statistiques, dossier `tests/unit/` | un test par cas de test, nommé `ct_NN_…`, titre du test = identifiant du CT |
+| Acceptation (CT) | recette interne | Playwright 1.63.0 sur Chromium et WebKit (projets WebKit actifs avec la variable `CI`), dossier `tests/acceptance/` ; `node:test` sur l'API du moteur pour les CT statistiques, dossier `tests/unit/` | un test par cas de test, nommé `ct_NN_…`, titre du test = identifiant du CT |
 | Installation | recette interne | copie propre du dépôt du projet, environnement vierge, suivi du guide d'installation | CT d'installation propre, de mise à jour, de désinstallation |
 | Sécurité fonctionnelle | recette interne | tests Playwright, ESLint, Semgrep (règles locales, via `uvx`), lecture de fichiers du dépôt | entrées malveillantes rejetées, politique de sécurité du contenu, absence de requêtes, dépendances, workflows |
 | Accessibilité | recette interne | @axe-core/playwright (aucune violation sérieuse ou critique sur chaque écran), Playwright (rôles, noms accessibles, clavier, focus, mouvement réduit) et calcul des contrastes du canevas par la formule WCAG 2.2 | RGAA 4.1 et WCAG 2.2 AA selon 05 § 6 |
@@ -21,7 +22,7 @@
 Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptation moteur). Un CT se rejoue seul avec `npx playwright test -g "ct_NN_"`. Fichiers existants : `tests/acceptance/{classique,progression,socle,serveur}.spec.ts` (Playwright) et `tests/unit/*.test.ts` (moteur, règles, progression, validation, dépôt). Pour un CT non encore écrit, le fichier cité est indicatif (`modes.spec.ts`, `sauvegarde.spec.ts`, `securite.spec.ts`…) : ce qui fait foi est le nom `ct_NN_…` du test, où NN est le numéro du CT.
 
 ### 1.2 Environnement
-- Poste de développement : Node 22, Chromium de Playwright (révision 1243, fournie avec Playwright 1.63.0) ; WebKit et Firefox absents, donc les CT « WebKit » sont NON EXÉCUTÉS ici et rejoués par la CI. Aucun téléphone : les CT « téléphone » sont NON EXÉCUTÉS ici, avec la raison consignée dans le rapport de tests, et sont remis au demandeur avec leur procédure.
+- Poste de développement : Node 22, navigateurs de Playwright 1.63.0 : Chromium (révision 1243) et WebKit (révision 2359) ; Firefox absent. `CI=1 npm run test:e2e` joue les quatre projets (Android et iPhone SE paysage, sous Chromium et sous WebKit), comme l'intégration continue. Les polices de la machine d'intégration (DejaVu seules) se reproduisent avec un fichier `fonts.conf` qui ne déclare que `/usr/share/fonts/truetype/dejavu`, passé par la variable `FONTCONFIG_FILE`. Aucun téléphone : les CT « téléphone » sont NON EXÉCUTÉS ici, avec la raison consignée dans le rapport de tests, et sont remis au demandeur avec leur procédure.
 - Le jeu est servi par `scripts/serve.mjs` sur 127.0.0.1 et un port libre ; le test démarre le serveur, attend sa réponse (délai maximal) et l'arrête dans tous les cas.
 - Profils d'appareil : **S22** 780 × 360, facteur 3, tactile, 0,18 mm par pixel CSS ; **iPhone SE 3** 667 × 375, facteur 2, tactile, 0,156 mm par pixel CSS ; **16:9 de 5 pouces** 640 × 360 ; **21:9 de 6,9 pouces** 960 × 411 ; **vertical** 360 × 780. Langue fr-FR et fuseau Europe/Paris sauf mention contraire. Pour les seuils exprimés en millimètres, le test utilise la constante du jeu (1 mm = 6,3 pixels CSS : 9 mm = 57 px, 12 mm = 76 px, 5 mm = 31,5 px) et, pour les cases, la taille réelle du pixel de chaque profil.
 - Horloge : `page.clock` de Playwright (temps maîtrisé, rejouable) ; date fixée au 01/11/2026 quand un CT affiche des dates.
@@ -85,7 +86,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : EF-01 (CA-1), ENF-10 (deux touchers)
 - **Type** : fonctionnel
 - **Priorité** : haute
-- **Automatisé** : oui (`ct_01_menu_deux_touchers` (`tests/acceptance/classique.spec.ts`) ; `ct_01_menu_principal_en_paysage` (`tests/acceptance/socle.spec.ts`))
+- **Automatisé** : oui (`ct_01_menu_deux_touchers` (`tests/acceptance/classique.spec.ts`) ; `ct_01_menu_principal_en_paysage` (`tests/acceptance/socle.spec.ts`)) ; taille et graisse du titre (32 px gras, 05 § 7.2) vérifiées par `ct_01_menu_principal_en_paysage : le titre n’est pas en majuscules continues`
 - **Préconditions** : Premier lancement : stockage du navigateur vide ; jeu servi par `scripts/serve.mjs` sur 127.0.0.1.
 - **Étapes** :
   1. Ouvrir le jeu et attendre le menu principal.
@@ -182,7 +183,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : EF-02 (CA-5, RG-09), EF-14 (RG-39, victoire), EF-16 (RG-44)
 - **Type** : limite
 - **Priorité** : haute
-- **Automatisé** : oui (`ct_08_victoire_aire_pleine` : `tests/unit/moteur.test.ts` pour le cas exact de 288 cases et 284 points en mode Classique ; `tests/acceptance/classique.spec.ts` pour la variante en mode Zen dans le navigateur, profil Android paysage, test lent d'environ 4,5 min)
+- **Automatisé** : oui (`ct_08_victoire_aire_pleine` : `tests/unit/moteur.test.ts` pour le cas exact de 288 cases et 284 points en mode Classique ; `tests/acceptance/classique.spec.ts` pour la variante en mode Zen dans le navigateur, profil Android paysage, test lent d'environ 4,5 min) ; variante navigateur exclue sous WebKit (durée : un seul moteur suffit) — jouée une fois sous WebKit en recette, réussie
 - **Préconditions** : Premier lancement : stockage du navigateur vide ; jeu servi par `scripts/serve.mjs` sur 127.0.0.1.
 - **Étapes** :
   1. Mode Zen : le pilote de recette joue toute la partie sur le moteur (graine 1) et envoie au navigateur, aux flèches, chaque commande juste avant son pas ; la tête et le score affichés sont contrôlés tous les 20 bonbons.
@@ -209,7 +210,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : EF-28 (CA-1, CA-2, RG-80, RG-81), EF-26 (RG-77, orientation verticale)
 - **Type** : limite
 - **Priorité** : haute
-- **Automatisé** : oui (`ct_10_orientation` (`tests/acceptance/classique.spec.ts`)) ; rotation physique à 180° : CT téléphone
+- **Automatisé** : oui (`ct_10_orientation` (`tests/acceptance/classique.spec.ts`)) ; rotation physique à 180° : CT téléphone ; le cas « paysage retourné » est exclu sous WebKit (émulation de l'orientation par le protocole de débogage de Chromium) : compensé par CT-96 (rotation réelle sur iPhone)
 - **Préconditions** : Premier lancement : stockage du navigateur vide ; jeu servi par `scripts/serve.mjs` sur 127.0.0.1 ; partie en cours.
 - **Étapes** :
   1. Émuler l'orientation « paysage secondaire » (protocole de débogage) et vérifier que l'affichage reste horizontal et que la commande « haut » fait monter le serpent vers le haut de l'écran.
@@ -960,7 +961,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : ENF-09 (hors ligne), EXS-02 (aucune requête), RG-85
 - **Type** : fonctionnel
 - **Priorité** : haute
-- **Automatisé** : oui (`ct_65_hors_ligne_apres_redemarrage`, `tests/acceptance/installation.spec.ts`) ; téléphone en mode avion : CT téléphone
+- **Automatisé** : oui (`ct_65_hors_ligne_apres_redemarrage`, `tests/acceptance/installation.spec.ts`) ; téléphone en mode avion : CT téléphone ; exclu sous WebKit : le hors-ligne simulé par Playwright y fait échouer même ce que l'agent de service sert depuis son cache (`page.goto` : « WebKit encountered an internal error »), ce qu'un téléphone en mode avion ne fait pas ; compensé par CT-94 (étape 2) et CT-95 sur iPhone
 - **Préconditions** : Jeu installé (voir CT précédent) dans un profil persistant.
 - **Étapes** :
   1. Fermer complètement le navigateur, couper le réseau (`setOffline`), relancer avec le même profil.
@@ -988,7 +989,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : EF-29 (CA-3, RG-91), ENF-16 (E-06), EXS-08 (vérification d'empreinte), EXS-16
 - **Type** : erreur
 - **Priorité** : haute
-- **Automatisé** : oui (`ct_67_mise_a_jour_echec`, `tests/acceptance/installation.spec.ts`)
+- **Automatisé** : oui (`ct_67_mise_a_jour_echec`, `tests/acceptance/installation.spec.ts`) ; sous WebKit, les deux cas de connexion coupée (« une connexion coupée en cours de téléchargement… » et « une connexion coupée, puis le réseau perdu… ») sont exclus : après une coupure, le WebKit de Playwright pour Linux reste parfois bloqué (1 essai sur 20 en recette, sur « Installation en cours… ») ; compensé par CT-115 (étape 3) sur iPhone réel. Le cas de l'empreinte fausse est joué sous WebKit
 - **Préconditions** : Version 1.0.0 installée ; version 1.1.0 servie avec un fichier altéré, puis avec le réseau coupé en cours de téléchargement.
 - **Étapes** :
   1. Toucher « Installer » avec un fichier dont l'empreinte ne correspond pas à la liste.
@@ -1001,7 +1002,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : ENF-18 (conditions de validité), EXS-14 (aucune suppression par le jeu), EXS-15 (effacement documenté)
 - **Type** : installation
 - **Priorité** : moyenne
-- **Automatisé** : oui pour l'effacement (`ct_68_effacement_des_donnees`, `tests/acceptance/installation.spec.ts`) ; désinstallation sur téléphone : CT téléphone
+- **Automatisé** : oui pour l'effacement (`ct_68_effacement_des_donnees`, `tests/acceptance/installation.spec.ts`) ; désinstallation sur téléphone : CT téléphone ; exclu sous WebKit (effacement des données du site par le protocole de débogage de Chromium) ; la recette l'a joué sous WebKit avec un effacement fait par une page du site (caches, base, stockage) : réussi. La désinstallation réelle reste à vérifier sur iPhone (CT-94)
 - **Préconditions** : Jeu installé avec une progression ; une sauvegarde créée et conservée dans le dossier de téléchargement de test.
 - **Étapes** :
   1. Parcourir le jeu : aucune action de réinitialisation ni de suppression n'existe (menus, réglages, sauvegarde).
@@ -1015,13 +1016,27 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : ENF-03 (compatibilité), EF-28 (iPhone), EF-21 (CA-3, vibrations absentes)
 - **Type** : installation
 - **Priorité** : moyenne
-- **Automatisé** : oui (toute la suite sur le projet WebKit de `playwright.config.ts`, exécutée par la CI ; localement, Chromium seulement) ; appareils réels : CT téléphone
-- **Préconditions** : Navigateurs de Playwright 1.63.0 ; profils « Android paysage » et « iPhone SE paysage ».
+- **Automatisé** : oui (toute la suite sur les quatre projets de `playwright.config.ts` : `CI=1 npm run test:e2e`, sur le poste comme dans l'intégration continue) ; appareils réels : CT téléphone
+- **Préconditions** : Navigateurs de Playwright 1.63.0 (Chromium 1243, WebKit 2359) ; profils « Android paysage » et « iPhone SE paysage », chacun sous les deux moteurs ; une fois avec les polices du poste, une fois avec les seules polices DejaVu (`FONTCONFIG_FILE`).
 - **Étapes** :
-  1. Exécuter la suite d'acceptation sur chaque profil et chaque moteur disponibles.
-  2. Relever les tests ignorés pour cause d'absence d'API (vibrations, Wake Lock) et leur repli.
+  1. Exécuter la suite d'acceptation sur les quatre projets.
+  2. Relever les tests ignorés sous WebKit et vérifier, pour chacun, que l'exclusion tient à l'outil de test et non au jeu (rejouer le test sans l'exclusion et lire la cause de l'échec).
+  3. Pour chaque exclusion, relever le CT sur iPhone réel qui la compense.
+  4. Rejouer les tests de mise en page (CT-01, CT-88, CT-92, CT-107, CT-111) avec les seules polices DejaVu.
 - **Données** : Aucune.
-- **Résultat attendu** : Mêmes résultats sur Chromium et WebKit ; les replis (RG-63, RG-81, pause sans Wake Lock) fonctionnent. Localement : WebKit NON EXÉCUTÉ si le navigateur n'est pas présent, avec la raison consignée.
+- **Résultat attendu** : Sous WebKit, tous les tests non exclus réussissent ; les replis (RG-63 vibrations absentes, RG-81 orientation, pause sans Wake Lock) fonctionnent. Les exclusions WebKit admises sont celles du tableau ci-dessous, chacune justifiée par une limite de l'outil de test et compensée sur iPhone réel :
+
+| Test exclu sous WebKit | Raison (limite de l'outil) | Compensation sur iPhone réel |
+|---|---|---|
+| `ct_10_orientation` (paysage retourné) | émulation de l'orientation par le protocole de débogage de Chromium | CT-96 |
+| `ct_08_victoire_aire_pleine` (variante navigateur) | durée (environ 10 min sous WebKit) ; un moteur suffit | aucune nécessaire (règle du moteur) |
+| `ct_65_hors_ligne_apres_redemarrage` | hors-ligne simulé de Playwright incompatible avec l'agent de service | CT-94 étape 2, CT-95 |
+| `ct_67` : deux cas de connexion coupée | blocage du WebKit de Playwright après une coupure | CT-115 étape 3 |
+| `ct_104` : deux cas « mode avion » | `navigator.onLine` non simulable sans casser l'agent de service | CT-115 étape 2, CT-95 |
+| `ct_68_effacement_des_donnees` | effacement par le protocole de débogage de Chromium | CT-94 (désinstallation) |
+| `ct_83_temps_de_navigation` (démarrage) | ralentissement du processeur par le protocole de débogage | CT-98 |
+| `ct_84_regularite_des_pas` (navigateur) | cadence d'images du WebKit sans affichage | CT-98 |
+| `ct_89_endurance_automatisee` | mémoire lue par le protocole de débogage | CT-101 |
 
 ### CT-70 — Aucune requête réseau pendant l'exécution du jeu
 - **Exigences** : EXS-02 (aucune communication), ENF-16 (aucun journal transmis), ENF-17, RG-85
@@ -1214,7 +1229,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : ENF-05 (démarrage, lancement de partie, changement d'écran)
 - **Type** : performance
 - **Priorité** : moyenne
-- **Automatisé** : oui (`ct_83_temps_de_navigation` (`tests/acceptance/classique.spec.ts` : changement d'écran et lancement ; `tests/acceptance/qualite.spec.ts` : démarrage, cinq mesures), ralentissement du processeur par un facteur 4) ; mesure officielle : CT téléphone
+- **Automatisé** : oui (`ct_83_temps_de_navigation` (`tests/acceptance/classique.spec.ts` : changement d'écran et lancement ; `tests/acceptance/qualite.spec.ts` : démarrage, cinq mesures), ralentissement du processeur par un facteur 4) ; mesure officielle : CT téléphone ; exclu sous WebKit (ralentissement du processeur par le protocole de débogage de Chromium) ; compensé par CT-98 sur téléphone
 - **Préconditions** : Cache de l'agent de service chaud ; profil S22.
 - **Étapes** :
   1. Mesurer 5 fois le délai entre le début du chargement et l'apparition du menu utilisable.
@@ -1227,7 +1242,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : ENF-06 (intervalles à ± 10 %, 50 images par seconde), ENF-08 (serpent de 280 cases)
 - **Type** : performance
 - **Priorité** : moyenne
-- **Automatisé** : oui (`ct_84_regularite_des_pas` (`tests/unit/ordonnanceur.test.ts`, à 60 Hz et 120 Hz simulés) ; la mesure indicative dans le navigateur : `ct_84_regularite_des_pas`, `tests/acceptance/qualite.spec.ts`) ; mesure officielle : CT téléphone
+- **Automatisé** : oui (`ct_84_regularite_des_pas` (`tests/unit/ordonnanceur.test.ts`, à 60 Hz et 120 Hz simulés) ; la mesure indicative dans le navigateur : `ct_84_regularite_des_pas`, `tests/acceptance/qualite.spec.ts`) ; mesure officielle : CT téléphone ; mesure dans le navigateur exclue sous WebKit (cadence d'images irrégulière du WebKit sans affichage de Playwright : 39 à 58 images par seconde selon l'essai en recette) ; compensée par CT-98 sur téléphone
 - **Préconditions** : Chromium, horloge réelle ; mode Zen.
 - **Étapes** :
   1. Relever pendant 30 s le nombre d'images par seconde (`requestAnimationFrame`).
@@ -1292,7 +1307,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : ENF-20 (fiabilité)
 - **Type** : fiabilité
 - **Priorité** : moyenne
-- **Automatisé** : oui (`ct_89_endurance_automatisee`, `tests/acceptance/qualite.spec.ts`) ; 2 heures de jeu réelles : CT téléphone
+- **Automatisé** : oui (`ct_89_endurance_automatisee`, `tests/acceptance/qualite.spec.ts`) ; 2 heures de jeu réelles : CT téléphone ; exclu sous WebKit (mémoire lue par le protocole de débogage de Chromium) ; la recette l'a joué sous WebKit sans la mesure de mémoire : aucune erreur ni plantage ; mémoire sur téléphone : CT-101
 - **Préconditions** : Horloge accélérée.
 - **Étapes** :
   1. Enchaîner 50 cycles pause/reprise, 20 sauvegardes puis restaurations et une partie de chaque mode.
@@ -1370,8 +1385,9 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
   3. Ouvrir les réglages : vibrations grisées avec « Non disponible sur ce téléphone ».
   4. Tenir le téléphone vertical : message « Tournez votre téléphone à l'horizontale » et partie en pause.
   5. Mode Zen sans toucher l'écran jusqu'à la mise en veille (iOS avant 18.4) : la partie doit passer en pause sans perte.
+  6. Nouvelle installation (données du site effacées) : pendant la préparation du mode hors ligne (« Préparation du mode hors ligne… »), recharger la page ou quitter puis rouvrir le jeu ; relever si « Prêt à jouer hors ligne » arrive sans redémarrer le téléphone ni Safari, et en combien de temps (sous le WebKit de Playwright, l'installation reste en suspens jusqu'au redémarrage du navigateur).
 - **Données** : Aucune.
-- **Résultat attendu** : Installation en 10 minutes au plus et 3 étapes au plus ; le jeu fonctionne hors ligne ; repli des vibrations, de l'orientation et de la veille conformes à 03 § 5.2 ; limites iPhone conformes à HYP-31.
+- **Résultat attendu** : Installation en 10 minutes au plus et 3 étapes au plus ; le jeu fonctionne hors ligne ; repli des vibrations, de l'orientation et de la veille conformes à 03 § 5.2 ; limites iPhone conformes à HYP-31. Un rechargement pendant la première installation n'empêche pas « Prêt à jouer hors ligne ».
 
 ### CT-95 — Mode avion, redémarrage et 7 jours sans échange
 - **Exigences** : ENF-09 (0 octet en mode avion), EXS-02, RG-85, EXS-14 (persistance)
@@ -1504,7 +1520,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Exigences** : EF-29 (CA-4, CA-5, RG-89), ENF-09 (échange admis, 10 Ko par ouverture)
 - **Type** : limite
 - **Priorité** : haute
-- **Automatisé** : oui (`ct_104_mise_a_jour_contexte`, `tests/acceptance/installation.spec.ts`)
+- **Automatisé** : oui (`ct_104_mise_a_jour_contexte`, `tests/acceptance/installation.spec.ts`) ; les deux cas « mode avion » sont exclus sous WebKit (`navigator.onLine` non simulable sans casser l'agent de service, voir CT-65) : compensés par CT-115 (étape 2) et CT-95 sur iPhone. La mesure de l'ouverture connectée couvre aussi la vérification de version faite par la page 3 s après l'ouverture ; sous WebKit elle dépasse 10 Ko (anomalie ANO-04 du rapport de tests, test marqué « échec attendu » sous WebKit)
 - **Préconditions** : Version 1.0.0 installée ; version 1.1.0 servie.
 - **Étapes** :
   1. Lancer une partie ; faire détecter la version plus récente pendant la partie (mise à jour de l'agent de service) : relever tout élément affiché pendant la partie, pause comprise.
@@ -1512,7 +1528,7 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
   3. Mode avion (réseau coupé) : ouvrir « À propos ».
   4. Relever les requêtes réseau d'une ouverture connectée (nombre, taille cumulée, destination).
 - **Données** : Aucune.
-- **Résultat attendu** : Rien ne s'affiche pendant la partie ni en pause ; la proposition n'apparaît que dans « À propos » et sur le menu ; en mode avion aucune proposition ni erreur, « Prêt à jouer hors ligne » visible ; la vérification se limite à l'origine locale de test et à moins de 10 Ko (valeur à confirmer sur l'adresse publiée par le CT d'adresse publiée).
+- **Résultat attendu** : Rien ne s'affiche pendant la partie ni en pause ; la proposition n'apparaît que dans « À propos » et sur le menu ; en mode avion aucune proposition ni erreur, « Prêt à jouer hors ligne » visible ; la vérification se limite à l'origine locale de test et à 10 Ko au plus par ouverture, mesurés jusqu'à 2 s après la vérification différée de la page (3 s après l'ouverture), pour compter les deux vérifications possibles : celle du navigateur et celle de la page (valeur à confirmer sur l'adresse publiée par le CT d'adresse publiée).
 
 ### CT-105 — Panneau « Installer le jeu » dans le navigateur
 - **Exigences** : EF-29 (RG-92), ENF-01 (installation guidée), 05 § 4.12 (E14)
@@ -1665,10 +1681,11 @@ Exécution : `npm run test:e2e` (Playwright) et `npm test` (moteur et acceptatio
 - **Étapes** :
   1. Ouvrir le lien dans le navigateur : relever le bandeau et le panneau « Installer le jeu » avec les étapes du bon téléphone (Partager introuvable en paysage sur iPhone : conseil de la verticale).
   2. Avec 1.1.0 publiée : relever « Nouvelle version 1.1.0 disponible » seulement dans « À propos » et sur le menu, jamais en partie ; fermer et rouvrir sans « Installer » : version inchangée.
-  3. Toucher « Installer », couper la connexion en cours de téléchargement : relever E-06 et le fonctionnement en mode avion.
+  3. Toucher « Installer », couper la connexion en cours de téléchargement : relever E-06 et le fonctionnement en mode avion. Puis « Réessayer » une fois la connexion revenue : la mise à jour aboutit, l'écran ne reste pas sur « Installation en cours… ».
   4. Refaire la mise à jour jusqu'au bout : progression identique.
+  5. Sans nouvelle version publiée, téléphone connecté sur un réseau lent (partage de connexion en 3G ou réseau limité) : ouvrir le jeu, attendre 10 s, puis relever le volume échangé avec l'adresse officielle (proxy de mesure ou inspecteur web de Safari depuis un Mac) ; recommencer 3 fois.
 - **Données** : Aucune.
-- **Résultat attendu** : Parcours conforme à 05 § 2 (Ami : installer ; Demandeur : mettre à jour) et aux critères CA-1 à CA-5 d'EF-29.
+- **Résultat attendu** : Parcours conforme à 05 § 2 (Ami : installer ; Demandeur : mettre à jour) et aux critères CA-1 à CA-5 d'EF-29. Ouverture connectée sans nouvelle version : 10 Ko au plus échangés (ENF-09), vérification différée de la page comprise (voir ANO-04 du rapport de tests).
 
 ### CT-116 — Restauration impossible à enregistrer : E-07
 - **Exigences** : EF-24 (CA-5, RG-73), ENF-16 (E-07), EXS-12 (message sans trace), ENF-14

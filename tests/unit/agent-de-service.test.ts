@@ -192,6 +192,16 @@ describe('ct_66_mise_a_jour_consentie : l’agent ne remplace jamais seul une ve
     assert.equal(world.stores.has('serpent-cosmique-1.1.0'), false);
   });
 
+  it('la version proposée porte l’heure où elle a été notée : la page reconnaît une proposition de cette ouverture', async () => {
+    const world = createWorld({ site: SITE, active: true });
+    const before = Date.now();
+    await assert.rejects(world.install());
+    const noted = Number(
+      world.stores.get('serpent-cosmique-offer')?.get(`${SCOPE}version`)?.headers.get('X-Noted-At'),
+    );
+    assert.ok(noted >= before && noted <= Date.now(), `heure notée : ${noted}`);
+  });
+
   it('un consentement donné pour une autre version ne vaut pas', async () => {
     const world = createWorld({ site: SITE, active: true, consent: '1.0.5' });
     await assert.rejects(world.install());

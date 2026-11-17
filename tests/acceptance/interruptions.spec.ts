@@ -64,6 +64,8 @@ test.describe('ct_61_pause_automatique : chaque perte du premier plan met la par
     test(`${interruption.name} : aucun pas de plus, une minute plus tard rien n’a bougé, « Reprendre » attendu`, async ({
       page,
     }) => {
+      // Une minute simulée image par image (3 750 images) : plus de 30 s de calcul sous WebKit.
+      test.setTimeout(120_000);
       const problems = watchProblems(page);
       await startRunning(page);
       const before = await read(page);
@@ -244,6 +246,8 @@ test.describe('ct_49_audio_hors_premier_plan : la musique suit le premier plan e
   test('partie : la musique joue, s’arrête en pause (même après une minute) et repart à « Reprendre »', async ({
     page,
   }) => {
+    // Une minute simulée image par image (3 750 images) : plus de 30 s de calcul sous WebKit.
+    test.setTimeout(120_000);
     await installAudioProbe(page);
     await startRunning(page);
     await runFor(page, 1500);

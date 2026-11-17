@@ -27,6 +27,11 @@ import {
 /** Millimètres réels par pixel CSS de chaque profil (07 § 1.2). */
 const MM_PER_PX: Record<string, number> = { 'Android paysage': 0.18, 'iPhone SE paysage': 0.156 };
 
+/** Téléphone simulé par le projet : un même profil tourne sous Chromium et sous WebKit. */
+function phoneOf(projectName: string): string {
+  return projectName.replace(/ \(WebKit\)$/, '');
+}
+
 const STEP_MS = 1000 / 6;
 
 /** Joue une partie jusqu'au premier pas, serpent à droite en colonne 7. */
@@ -224,6 +229,9 @@ test('ct_10_orientation : le message seul en vertical, pause, retour à l’hori
   await page.setViewportSize({ width: 360, height: 780 });
   await expect(page.getByText("Tournez votre téléphone à l'horizontale")).toBeVisible();
   await expect(page.locator('#app')).toBeHidden();
+  // Le navigateur signale le changement d'orientation à son rendu suivant (WebKit) : la pause est alors posée,
+  // avant que l'horloge simulée n'avance.
+  await expect(page.locator('.overlay .dialog')).toBeAttached();
   await runFor(page, 2000);
   await page.setViewportSize({ width: 780, height: 360 });
   await expect(page.locator('.rotate-notice')).toBeHidden();
@@ -304,7 +312,7 @@ test('ct_13_fleches : taille, position et retour visuel', async ({ page }, testI
     const overlapY = box.y < canvas.y + canvas.height && box.y + box.height > canvas.y;
     expect(overlapX && overlapY, `la flèche ${name} recouvre la grille`).toBe(false);
   }
-  expect(testInfo.project.name in MM_PER_PX).toBe(true);
+  expect(phoneOf(testInfo.project.name) in MM_PER_PX).toBe(true);
   // 05 § 6 : texte de 16 px au moins (majuscules de 1,8 mm sur le S22).
   for (const label of await page.locator('.arrow-label').all()) {
     const size = await label.evaluate((element) =>
@@ -618,7 +626,9 @@ test('ct_04_depart_et_pas : la zone d’annonce existe dès le démarrage et ann
   await openGame(page, { seed: 1 });
   const region = page.locator('div.sr-only[aria-live="polite"]');
   await expect(region).toHaveCount(1);
-  await expect(region).toHaveText('');
+  // Seule annonce possible avant la partie : « Prêt à jouer hors ligne », quand l'agent de service a fini de
+  // s'installer, à un instant qui dépend de la machine.
+  await expect(region).toHaveText(/^(Prêt à jouer hors ligne)?$/);
   await startClassic(page);
   await runFor(page, 50);
   await expect(region).toHaveText('3');
@@ -721,8 +731,9 @@ test('ct_82_grille_entiere_et_cases : grille entière dans la zone sûre, cases 
     const cell = canvas.width / GRID.columns;
     expect(Number.isInteger(cell)).toBe(true);
     expect(canvas.height).toBe(cell * GRID.rows);
-    const minMm = testInfo.project.name === 'Android paysage' ? 4 : 3;
-    expect(cell * MM_PER_PX[testInfo.project.name]!).toBeGreaterThanOrEqual(minMm);
+    const phone = phoneOf(testInfo.project.name);
+    const minMm = phone === 'Android paysage' ? 4 : 3;
+    expect(cell * MM_PER_PX[phone]!).toBeGreaterThanOrEqual(minMm);
     const pause = (await page.getByRole('button', { name: 'Pause', exact: true }).boundingBox())!;
     expect(pause.width).toBeGreaterThanOrEqual(9 * PX_PER_MM);
     expect(pause.height).toBeGreaterThanOrEqual(9 * PX_PER_MM);

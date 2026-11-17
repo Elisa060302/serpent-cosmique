@@ -20,8 +20,10 @@ async function readEntry(cacheName: string): Promise<string | null> {
   return response === undefined ? null : response.text();
 }
 
+/** L'heure d'écriture dit à la page si une proposition a été notée à cette ouverture ou à une précédente. */
 async function writeEntry(cacheName: string, value: string): Promise<void> {
-  await (await caches.open(cacheName)).put(entryUrl(), new Response(value));
+  const entry = new Response(value, { headers: { 'X-Noted-At': String(Date.now()) } });
+  await (await caches.open(cacheName)).put(entryUrl(), entry);
 }
 
 /** Télécharge un fichier du site ; refuse toute réponse redirigée, non `ok` ou d'empreinte fausse (EXS-17). */

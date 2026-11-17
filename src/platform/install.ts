@@ -4,7 +4,7 @@
  * La page n'émet aucune requête et n'envoie aucun message à l'agent de service : le consentement est une entrée de
  * Cache Storage, la version proposée en est une autre, que l'agent écrit quand il refuse de s'installer seul.
  */
-import { UPDATE_EVENT_WAIT_MS } from '../core/rules.ts';
+import { OFFER_READ, UPDATE_EVENT_WAIT_MS } from '../core/rules.ts';
 import { VERSION, isNewerVersion, isVersion } from '../core/version.ts';
 
 export interface InstallStatus {
@@ -66,6 +66,16 @@ async function writeEntry(cacheName: string, value: string): Promise<void> {
   await (await caches.open(cacheName)).put(entryUrl(), new Response(value));
 }
 
+/** Heure à laquelle l'agent de service a noté l'entrée (en-tête `X-Noted-At`), ou 0. */
+async function entryNotedAt(cacheName: string): Promise<number> {
+  try {
+    const response = await caches.match(entryUrl(), { cacheName });
+    return Number(response?.headers.get('X-Noted-At') ?? 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * Attend le sort d'une mise à jour consentie : vrai si la nouvelle version est active, faux sinon. Le navigateur
  * termine sa vérification avant d'annoncer le nouvel agent : seule la vie de cet agent (installé, remplacé ou
@@ -94,6 +104,21 @@ function runUpdate(registration: ServiceWorkerRegistration): Promise<boolean> {
       },
       () => resolve(false),
     );
+  });
+}
+
+/**
+ * Recharge la page sur la nouvelle version une fois son agent activé. L'agent prend la page en main pendant son
+ * activation : recharger à cet instant laisse l'activation en suspens sous WebKit, et le mode hors ligne n'est
+ * jamais annoncé prêt.
+ */
+function reloadOnceActivated(worker: ServiceWorker | null): void {
+  if (worker === null || worker.state === 'activated') {
+    window.location.reload();
+    return;
+  }
+  worker.addEventListener('statechange', () => {
+    if (worker.state === 'activated') window.location.reload();
   });
 }
 
@@ -144,6 +169,16 @@ export function createInstaller(): Installer {
     }
   };
 
+  /** Après le refus d'un nouvel agent : la lecture est reprise tant qu'elle n'apporte pas de version nouvelle. */
+  const readRefusedOffer = async (): Promise<void> => {
+    const before = known;
+    for (let attempt = 1; attempt <= OFFER_READ.attempts; attempt += 1) {
+      await readOffer();
+      if (known !== before || attempt === OFFER_READ.attempts) return;
+      await new Promise((resolve) => window.setTimeout(resolve, OFFER_READ.delayMs));
+    }
+  };
+
   const watch = (current: ServiceWorkerRegistration): void => {
     current.addEventListener('updatefound', () => {
       announced = true;
@@ -151,7 +186,7 @@ export function createInstaller(): Installer {
       worker?.addEventListener('statechange', () => {
         refreshOffline();
         // Un nouvel agent qui s'arrête sans s'installer a laissé la version proposée.
-        if (worker.state === 'redundant') void readOffer();
+        if (worker.state === 'redundant') void readRefusedOffer();
       });
       refreshOffline();
     });
@@ -171,15 +206,14 @@ export function createInstaller(): Installer {
     refreshOffline();
     registration.installing?.addEventListener('statechange', refreshOffline);
     await readOffer();
-    // Vérification de version à l'ouverture, téléphone connecté ; sans réseau, elle échoue en silence (CA-5).
-    if (navigator.onLine && registration.active !== null && registration.installing === null) {
-      const checked = await registration.update().then(
-        () => true,
-        () => false,
-      );
-      // Aucun nouvel agent annoncé : la version mémorisée n'est plus publiée, elle n'est plus proposée.
+    // La vérification de version à l'ouverture est celle que fait le navigateur de lui-même (ADR-07) : la page n'en
+    // lance pas d'autre, qui téléchargerait l'agent une seconde fois sous WebKit (ENF-09). Une nouvelle version
+    // trouvée est annoncée (`updatefound`) ou, si l'annonce a précédé la page, notée par l'agent depuis l'ouverture.
+    if (navigator.onLine && registration.active !== null) {
       await new Promise((resolve) => window.setTimeout(resolve, UPDATE_EVENT_WAIT_MS));
-      if (checked && !announced && known !== null) {
+      const notedNow = (await entryNotedAt(OFFER_CACHE)) >= performance.timeOrigin;
+      // Rien de nouveau depuis l'ouverture : la version mémorisée n'est plus publiée, elle n'est plus proposée.
+      if (!announced && !notedNow && registration.installing === null && known !== null) {
         known = null;
         change({});
         await caches.delete(OFFER_CACHE).catch(() => false);
@@ -195,7 +229,7 @@ export function createInstaller(): Installer {
       } catch {
         // Sans stockage de session, le message de fin de mise à jour n'est simplement pas affiché.
       }
-      window.location.reload();
+      reloadOnceActivated(navigator.serviceWorker.controller);
     });
     void start();
   }
@@ -233,7 +267,7 @@ export function createInstaller(): Installer {
         // Le consentement ne vaut que pour cette tentative : un échec n'autorise aucune installation ultérieure.
         await caches.delete(CONSENT_CACHE).catch(() => false);
         // Une version plus récente publiée entre-temps a refusé de s'installer : rien n'a échoué, elle est proposée.
-        await readOffer();
+        await readRefusedOffer();
         change({ update: known !== null && known !== target ? 'idle' : 'failed' });
       })();
     },

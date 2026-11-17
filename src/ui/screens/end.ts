@@ -102,9 +102,13 @@ export function createEndScreen(options: EndOptions): Screen {
 function createNameBlock(record: EndRecord, replay: HTMLButtonElement): HTMLElement {
   const input = createElement('input', {
     className: 'name-input',
-    attributes: { type: 'text', 'aria-describedby': 'name-hint name-reminder name-counter' },
+    attributes: {
+      type: 'text',
+      'aria-describedby': 'name-hint name-reminder name-counter',
+      // Attribut plutôt que propriété : certains moteurs WebKit n'ont pas la propriété `enterKeyHint`.
+      enterkeyhint: 'done',
+    },
   });
-  input.enterKeyHint = 'done';
   input.autocomplete = 'off';
   input.spellcheck = false;
   input.value = sanitizeTyping(record.prefill);

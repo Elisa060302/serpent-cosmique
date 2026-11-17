@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MODE_IDS, SKINS } from '../../src/core/rules.ts';
+import { MODE_IDS, SKINS, UPDATE_EVENT_WAIT_MS } from '../../src/core/rules.ts';
 import type { ProgressData } from '../../src/core/types.ts';
 import { buildVersion, removeBuilds, startSite } from './support/site.ts';
 import type { TestSite } from './support/site.ts';
@@ -44,6 +44,25 @@ async function publish(version: string, prefix = '/'): Promise<TestSite> {
   return site;
 }
 
+/**
+ * Mode avion côté navigateur, en plus du site qui refuse toute requête (`setOffline` du site). Sous WebKit, le
+ * hors-ligne simulé par Playwright arrête les requêtes de la page avant l'agent de service : même ce que l'agent
+ * servirait depuis son cache échoue (« WebKit encountered an internal error »), contrairement à un téléphone. Sous
+ * WebKit, seul le site est donc coupé : le jeu ne peut plus rien obtenir du réseau et vit de son cache.
+ */
+async function cutBrowserNetwork(context: BrowserContext): Promise<void> {
+  if (test.info().project.use.browserName === 'webkit') return;
+  await context.setOffline(true);
+}
+
+/** Ces cas dépendent de l'état « hors ligne » du navigateur (`navigator.onLine`, événements `online` et `offline`). */
+const AIRPLANE_MODE_CHROMIUM_ONLY =
+  'Mode avion du navigateur (navigator.onLine) non simulable sous WebKit : Playwright y bloque aussi les réponses de l’agent de service (voir cutBrowserNetwork).';
+
+/** Ces cas coupent des connexions en cours de téléchargement (`cutOn`), puis attendent d'autres échanges. */
+const AFTER_CUT_CHROMIUM_ONLY =
+  'Sous le WebKit de Playwright pour Linux, une fois des connexions coupées par le site, le navigateur n’envoie parfois plus aucune requête ni ne charge la page depuis l’agent de service : la suite ne s’y observe pas.';
+
 /** Ouvre (ou rouvre) le jeu publié dans un profil de navigateur : l'agent de service et ses caches y survivent. */
 async function launch(directory: string, address: TestSite, prefix = '/'): Promise<Page> {
   const context = await launchProfile(directory, `${address.origin}${prefix}`);
@@ -56,6 +75,21 @@ async function launch(directory: string, address: TestSite, prefix = '/'): Promi
 async function relaunch(page: Page, directory: string, address: TestSite): Promise<Page> {
   await page.context().close();
   return launch(directory, address);
+}
+
+/**
+ * Ferme le jeu puis le rouvre, pour mesurer ce qu'échange une ouverture. `mark` est le nombre d'échanges du site une
+ * fois le navigateur fermé : la vérification de version que le navigateur lance environ une seconde après une
+ * ouverture appartient à celle-ci, même quand elle part au moment de la fermeture.
+ */
+async function reopenForMeasure(
+  page: Page,
+  directory: string,
+  address: TestSite,
+): Promise<{ page: Page; mark: number }> {
+  await page.context().close();
+  const mark = address.exchanges.length;
+  return { page: await launch(directory, address), mark };
 }
 
 async function openSettings(page: Page): Promise<void> {
@@ -81,6 +115,19 @@ async function waitUntilReady(page: Page): Promise<void> {
   await openAbout(page);
   await expect(aboutText(page, READY)).toBeVisible({ timeout: SLOW });
   await backToMenu(page, 2);
+}
+
+/**
+ * Installe le mode hors ligne, puis écrit la progression complète et rouvre le jeu. L'écriture recharge la page :
+ * sous le WebKit de Playwright pour Linux, un rechargement pendant la toute première installation de l'agent de
+ * service peut la laisser en suspens (ses téléchargements ne partent plus) jusqu'au redémarrage du navigateur ;
+ * l'installation est donc terminée avant. Ces cas portent sur la mise à jour, pas sur la première installation.
+ */
+async function installThenSeed(page: Page): Promise<void> {
+  await waitUntilReady(page);
+  await seedStorage(page, { progress: fullProgress() });
+  await page.goto('./');
+  await waitUntilReady(page);
 }
 
 const aboutText = (page: Page, text: string | RegExp) =>
@@ -295,7 +342,10 @@ test(`ct_64_installation_pwa : à une ouverture ordinaire, aucun message passage
   await expect(aboutText(page, READY)).toBeVisible();
 });
 
-test('ct_65_hors_ligne_apres_redemarrage : serveur arrêté, navigateur relancé, une partie, un réglage et une fin de partie, 0 requête', async () => {
+test('ct_65_hors_ligne_apres_redemarrage : serveur arrêté, navigateur relancé, une partie, un réglage et une fin de partie, 0 requête', async ({
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', AIRPLANE_MODE_CHROMIUM_ONLY);
   const address = await publish('1.0.0');
   const directory = newProfileDirectory();
   let page = await launch(directory, address);
@@ -330,13 +380,13 @@ test('ct_65_hors_ligne_apres_redemarrage : serveur arrêté, navigateur relancé
 });
 
 test('ct_66_mise_a_jour_consentie : la version 1.1.0 n’est appliquée qu’au toucher de « Installer », la progression est identique', async () => {
+  // Deux ouvertures mesurées chacune sur plus de 5 s.
+  test.setTimeout(60_000);
   const address = await publish('1.0.0');
   const v110 = buildVersion('1.1.0');
   const directory = newProfileDirectory();
   let page = await launch(directory, address);
-  await seedStorage(page, { progress: fullProgress() });
-  await page.goto('./');
-  await waitUntilReady(page);
+  await installThenSeed(page);
   await openAbout(page);
   // État A : rien de nouveau connu.
   await expect(aboutText(page, 'Vous avez la dernière version connue.')).toBeVisible();
@@ -349,8 +399,10 @@ test('ct_66_mise_a_jour_consentie : la version 1.1.0 n’est appliquée qu’au 
   address.serve(v110);
   // Deux fermetures complètes puis réouvertures sans toucher « Installer » : la version reste 1.0.0 (CA-1).
   for (let opening = 0; opening < 2; opening += 1) {
-    const mark = address.exchanges.length;
-    page = await relaunch(page, directory, address);
+    const reopened = await reopenForMeasure(page, directory, address);
+    page = reopened.page;
+    const mark = reopened.mark;
+    const opened = Date.now();
     await openAbout(page);
     await expect(aboutText(page, 'Nouvelle version 1.1.0 disponible.')).toBeVisible({
       timeout: SLOW,
@@ -360,8 +412,16 @@ test('ct_66_mise_a_jour_consentie : la version 1.1.0 n’est appliquée qu’au 
     await expect(aboutText(page, 'Votre progression est conservée.')).toBeVisible();
     await expect(aboutText(page, "Conseil : créez d'abord une sauvegarde.")).toBeVisible();
     await expect(page.getByRole('button', { name: 'Créer une sauvegarde' })).toBeVisible();
-    // ENF-09 : l'échange d'une ouverture connectée, version changée ou non, tient en 10 Ko.
-    const bytes = address.exchanges.slice(mark).reduce((sum, exchange) => sum + exchange.bytes, 0);
+    // ENF-09 : l'échange d'une ouverture connectée, version changée ou non, tient en 10 Ko. La mesure couvre la
+    // vérification de version de cette ouverture et l'attente de la page (UPDATE_EVENT_WAIT_MS), avec une marge.
+    const window = UPDATE_EVENT_WAIT_MS + 2000 - (Date.now() - opened);
+    if (window > 0) await page.waitForTimeout(window);
+    const exchanged = address.exchanges.slice(mark);
+    expect(
+      exchanged.filter((exchange) => exchange.path === '/sw.js').length,
+      'la vérification de version a eu lieu pendant la mesure',
+    ).toBeGreaterThanOrEqual(1);
+    const bytes = exchanged.reduce((sum, exchange) => sum + exchange.bytes, 0);
     expect(bytes).toBeLessThanOrEqual(10_000);
     expect(await cacheNames(page)).toEqual(['serpent-cosmique-1.0.0', 'serpent-cosmique-offer']);
   }
@@ -398,7 +458,7 @@ test('ct_66_mise_a_jour_consentie : la version 1.1.0 n’est appliquée qu’au 
 
   // La nouvelle version fonctionne sans réseau, avec la même progression.
   address.setOffline(true);
-  await page.context().setOffline(true);
+  await cutBrowserNetwork(page.context());
   await page.goto('./');
   await expect(page.getByRole('button', { name: 'Jouer' })).toBeVisible();
   await openAbout(page);
@@ -414,9 +474,7 @@ test.describe('ct_67_mise_a_jour_echec : la version en place reste utilisable, h
     next: string,
   ): Promise<Page> {
     let page = await launch(directory, address);
-    await seedStorage(page, { progress: fullProgress() });
-    await page.goto('./');
-    await waitUntilReady(page);
+    await installThenSeed(page);
     address.serve(next);
     page = await relaunch(page, directory, address);
     await openAbout(page);
@@ -438,7 +496,7 @@ test.describe('ct_67_mise_a_jour_echec : la version en place reste utilisable, h
     // Aucun fichier de la nouvelle version, aucun consentement résiduel.
     expect(await cacheNames(page)).toEqual(['serpent-cosmique-1.0.0', 'serpent-cosmique-offer']);
     address.setOffline(true);
-    await page.context().setOffline(true);
+    await cutBrowserNetwork(page.context());
     await page.goto('./');
     await expect(page.getByRole('button', { name: 'Jouer' })).toBeVisible();
     await openAbout(page);
@@ -458,7 +516,10 @@ test.describe('ct_67_mise_a_jour_echec : la version en place reste utilisable, h
     await expectStillUsable(page, address);
   });
 
-  test('une connexion coupée en cours de téléchargement donne E-06 ; « Réessayer » aboutit une fois la connexion revenue', async () => {
+  test('une connexion coupée en cours de téléchargement donne E-06 ; « Réessayer » aboutit une fois la connexion revenue', async ({
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', AFTER_CUT_CHROMIUM_ONLY);
     const address = await publish('1.0.0');
     const directory = newProfileDirectory();
     const page = await startFailingUpdate(address, directory, buildVersion('1.1.0'));
@@ -474,7 +535,10 @@ test.describe('ct_67_mise_a_jour_echec : la version en place reste utilisable, h
     await expect(aboutText(page, 'Version 1.1.0')).toBeVisible();
   });
 
-  test('une connexion coupée, puis le réseau perdu : la version 1.0.0 fonctionne en mode avion avec sa progression', async () => {
+  test('une connexion coupée, puis le réseau perdu : la version 1.0.0 fonctionne en mode avion avec sa progression', async ({
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', AFTER_CUT_CHROMIUM_ONLY);
     const address = await publish('1.0.0');
     const directory = newProfileDirectory();
     const page = await startFailingUpdate(address, directory, buildVersion('1.1.0'));
@@ -516,7 +580,10 @@ test('ct_104_mise_a_jour_contexte : rien pendant une partie ni en pause, la prop
   await expect(aboutText(page, 'Nouvelle version 1.1.0 disponible.')).toBeVisible();
 });
 
-test('ct_104_mise_a_jour_contexte : en mode avion, ni proposition ni erreur, et « Prêt à jouer hors ligne » est visible (EF-29 CA-5)', async () => {
+test('ct_104_mise_a_jour_contexte : en mode avion, ni proposition ni erreur, et « Prêt à jouer hors ligne » est visible (EF-29 CA-5)', async ({
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', AIRPLANE_MODE_CHROMIUM_ONLY);
   const address = await publish('1.0.0');
   const directory = newProfileDirectory();
   let page = await launch(directory, address);
@@ -538,7 +605,10 @@ test('ct_104_mise_a_jour_contexte : en mode avion, ni proposition ni erreur, et 
   expect(problems).toEqual([]);
 });
 
-test('ct_104_mise_a_jour_contexte : une proposition vue connecté ne s’affiche plus en mode avion, ni au menu ni dans « À propos », et revient avec la connexion (EF-29 CA-5, RG-89)', async () => {
+test('ct_104_mise_a_jour_contexte : une proposition vue connecté ne s’affiche plus en mode avion, ni au menu ni dans « À propos », et revient avec la connexion (EF-29 CA-5, RG-89)', async ({
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', AIRPLANE_MODE_CHROMIUM_ONLY);
   test.setTimeout(60_000);
   const address = await publish('1.0.0');
   const directory = newProfileDirectory();
@@ -605,9 +675,7 @@ test('ct_67_mise_a_jour_echec : une version plus récente publiée après la pro
   const address = await publish('1.0.0');
   const directory = newProfileDirectory();
   let page = await launch(directory, address);
-  await seedStorage(page, { progress: fullProgress() });
-  await page.goto('./');
-  await waitUntilReady(page);
+  await installThenSeed(page);
   address.serve(buildVersion('1.1.0'));
   page = await relaunch(page, directory, address);
   await openAbout(page);
@@ -639,12 +707,23 @@ test('ct_104_mise_a_jour_contexte : ouverture connectée sans nouvelle version, 
   let page = await launch(directory, address);
   await waitUntilReady(page);
   for (let opening = 0; opening < 2; opening += 1) {
-    const mark = address.exchanges.length;
-    page = await relaunch(page, directory, address);
+    const reopened = await reopenForMeasure(page, directory, address);
+    page = reopened.page;
+    const mark = reopened.mark;
     await expect(page.getByRole('button', { name: 'Jouer' })).toBeVisible();
+    const opened = Date.now();
     await openAbout(page);
     await expect(aboutText(page, READY)).toBeVisible();
-    const bytes = address.exchanges.slice(mark).reduce((sum, exchange) => sum + exchange.bytes, 0);
+    // La page attend UPDATE_EVENT_WAIT_MS l'issue de la vérification du navigateur : la mesure couvre cette attente,
+    // avec une marge, pour compter tout ce qu'une ouverture connectée échange.
+    const window = UPDATE_EVENT_WAIT_MS + 2000 - (Date.now() - opened);
+    if (window > 0) await page.waitForTimeout(window);
+    const exchanged = address.exchanges.slice(mark);
+    expect(
+      exchanged.filter((exchange) => exchange.path === '/sw.js').length,
+      'la vérification de version a eu lieu pendant la mesure',
+    ).toBeGreaterThanOrEqual(1);
+    const bytes = exchanged.reduce((sum, exchange) => sum + exchange.bytes, 0);
     expect(bytes).toBeLessThanOrEqual(10_000);
   }
 });
@@ -656,7 +735,7 @@ test('ENF-05 : démarrage à froid depuis le cache, hors ligne, en moins de 3 s'
   await waitUntilReady(page);
   address.setOffline(true);
   page = await relaunch(page, directory, address);
-  await page.context().setOffline(true);
+  await cutBrowserNetwork(page.context());
   const start = Date.now();
   await page.goto('./');
   await page.getByRole('button', { name: 'Jouer' }).waitFor();
@@ -793,7 +872,13 @@ test('ct_109_roles_et_etats : E1 (repère de mise à jour), E10 À propos avec e
 
 const BUTTON_TO_ERASE = /effac|supprim|réinitialis|vider|\breset\b|\bdelete\b|\bclear\b/i;
 
-test('ct_68_effacement_des_donnees : le jeu n’offre aucun effacement ; après effacement des données du site il repart comme au premier lancement, le fichier de sauvegarde reste intact', async () => {
+test('ct_68_effacement_des_donnees : le jeu n’offre aucun effacement ; après effacement des données du site il repart comme au premier lancement, le fichier de sauvegarde reste intact', async ({
+  browserName,
+}) => {
+  test.skip(
+    browserName !== 'chromium',
+    'L’effacement des données du site passe par le protocole de débogage, que Playwright ne fournit que pour Chromium.',
+  );
   const address = await publish('1.0.0');
   const directory = newProfileDirectory();
   const context = await launchProfile(directory, `${address.origin}/`);

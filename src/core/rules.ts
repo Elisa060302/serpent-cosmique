@@ -206,6 +206,12 @@ export const ERROR_TOAST_MS = 8000;
 /** Attente maximale, après la fin de la vérification de version, de l'annonce d'un nouvel agent de service (EF-29). */
 export const UPDATE_EVENT_WAIT_MS = 3000;
 
+/**
+ * Relecture de la version qu'un nouvel agent de service vient de noter en refusant de s'installer : sous WebKit, son
+ * écriture n'est parfois visible de la page qu'un instant après l'arrêt de l'agent (EF-29).
+ */
+export const OFFER_READ = { attempts: 10, delayMs: 100 } as const;
+
 /** Limites du dictionnaire de données. */
 export const LIMITS = {
   recordsPerMode: 10,
