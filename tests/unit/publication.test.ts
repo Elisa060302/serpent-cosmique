@@ -111,6 +111,7 @@ describe('ct_76_workflows : release.yml, droits et déclencheurs (EXS-11, EXS-16
 
   it('la version est créée par gh release create, sans action tierce de publication', () => {
     assert.match(release, /gh release create "\$GITHUB_REF_NAME" release\/\* --verify-tag/);
+    assert.match(release, /gh release upload "\$GITHUB_REF_NAME" release\/\* --clobber/);
     assert.doesNotMatch(release, /softprops|action-gh-release|create-release/);
   });
 

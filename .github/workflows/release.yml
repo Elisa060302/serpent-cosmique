@@ -115,4 +115,11 @@ jobs:
           name: fichiers-de-la-version
           path: release
       - name: Créer la version
-        run: gh release create "$GITHUB_REF_NAME" release/* --verify-tag --title "Serpent Cosmique ${GITHUB_REF_NAME#v}" --generate-notes
+        # Une version créée depuis le site de GitHub (étiquette posée par « Releases ») reçoit les fichiers ;
+        # sinon la version est créée ici.
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* --verify-tag --title "Serpent Cosmique ${GITHUB_REF_NAME#v}" --generate-notes
+          fi
