@@ -395,24 +395,37 @@ test.describe('ct_45_choix_des_skins : avec chaque forme et chaque motif, le ser
                 const pixel = [data[index] ?? 0, data[index + 1] ?? 0, data[index + 2] ?? 0];
                 if (Math.max(...pixel) < 0x90) continue;
                 if (pixel.every((value, i) => value === target[i])) exact += 1;
-                const onSegment = (from: number[], to: number[]): boolean => {
+                const onSegment = (from: number[], to: number[], color = pixel): boolean => {
                   let part: number | null = null;
                   for (let i = 0; i < 3; i += 1) {
                     const start = from[i] ?? 0;
                     const end = to[i] ?? 0;
                     if (start === end) {
-                      if (Math.abs((pixel[i] ?? 0) - start) > 3) return false;
+                      if (Math.abs((color[i] ?? 0) - start) > 3) return false;
                       continue;
                     }
-                    const along = ((pixel[i] ?? 0) - start) / (end - start);
+                    const along = ((color[i] ?? 0) - start) / (end - start);
                     if (part === null) part = along;
                     else if (Math.abs(along - part) * Math.abs(end - start) > 3) return false;
                   }
                   return true;
                 };
+                // Lissage du bord du contour, là où il touche à la fois l'anneau et le décor (petits disques de la
+                // comète) : au mélange du contour blanc et du décor s'ajoute au plus 10 % de la couleur.
+                const onContourEdge = (): boolean => {
+                  for (let share = 1; share <= 10; share += 1) {
+                    const rest = pixel.map(
+                      (value, i) => (value - (share / 100) * (target[i] ?? 0)) / (1 - share / 100),
+                    );
+                    if (onSegment(dark, [255, 255, 255], rest)) return true;
+                  }
+                  return false;
+                };
                 // Nuance de la couleur (jusqu'au blanc), ou bord du contour blanc sur le décor sombre.
                 const onLine =
-                  onSegment(target, [255, 255, 255]) || onSegment(dark, [255, 255, 255]);
+                  onSegment(target, [255, 255, 255]) ||
+                  onSegment(dark, [255, 255, 255]) ||
+                  onContourEdge();
                 if (!onLine) {
                   bad.add(pixel.map((v) => v.toString(16).padStart(2, '0')).join(''));
                 }

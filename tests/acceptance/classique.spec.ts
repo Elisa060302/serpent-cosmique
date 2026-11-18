@@ -401,6 +401,8 @@ test('ct_17_commande_pendant_decompte : prise au premier pas ; perdue si la paus
 test('ct_19_couleur_du_serpent : le serpent prend la couleur du dernier bonbon', async ({
   page,
 }) => {
+  // Cinq bonbons joués pas à pas, le canevas lu à chaque image : près de 30 s sous WebKit en intégration continue.
+  test.setTimeout(60_000);
   await startRunning(page);
   const oracle = oracleAfterFirstStep();
   const colors = new Set<string>();

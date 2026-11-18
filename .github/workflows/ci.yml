@@ -31,8 +31,8 @@ jobs:
         run: npm run build
       - name: Essai des fichiers de version (archive, SBOM, sommes de contrôle)
         run: sh scripts/release-files.sh 0.0.0 "$RUNNER_TEMP/version"
-      - name: Audit des dépendances
-        run: npm audit
+      - name: Audit des dépendances (exceptions datées dans scripts/audit.mjs)
+        run: node scripts/audit.mjs
 
   acceptation:
     # Les tests d'acceptation (Chromium et WebKit) sont répartis sur 3 machines en parallèle.
@@ -125,4 +125,5 @@ jobs:
     with:
       scan-args: |-
         --lockfile=package-lock.json
+        --config=osv-scanner.toml
       upload-sarif: false

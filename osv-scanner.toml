@@ -1,0 +1,6 @@
+# Exception datée, réexaminée chaque semaine (docs/guide-exploitation.md, « Exceptions d'audit ») ; même avis et
+# même date que scripts/audit.mjs. À la date, osv-scanner signale de nouveau l'avis.
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2026-11-25
+reason = "picomatch <=4.0.7 (ReDoS), aucune version corrigée publiée ; utilisé seulement en développement, par typescript-eslint, sur les motifs fixes de eslint.config.js ; absent du site publié."

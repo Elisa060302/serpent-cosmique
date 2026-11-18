@@ -12,6 +12,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; le
 - Champ « Votre nom » : l'indication de la touche Entrée du clavier (« OK ») est donnée sur tous les navigateurs.
 - Menu principal : titre (32 px) et texte du bandeau d'installation (16 px) aux tailles de la charte ; le menu tient dans l'écran en paysage avec les polices courantes.
 
+### Sécurité
+
+- Audit des dépendances : exception datée jusqu'au 25 novembre 2026 pour l'avis GHSA-fc5q-39xc-vjpf (picomatch, outil de développement, aucune version corrigée publiée, absent du site publié) ; tout autre avis bloque l'intégration continue, et l'exception tombe d'elle-même à sa date.
+
 ## [1.0.0] - 2026-11-08
 
 Première version de Serpent Cosmique.

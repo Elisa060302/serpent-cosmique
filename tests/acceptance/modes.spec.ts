@@ -708,6 +708,8 @@ test.describe('ct_117_analyse_axe : E3 Partie avec l’information du mode', () 
   });
 
   test('effet en cours', async ({ page }) => {
+    // Trois bonbons joués pas à pas avant l'analyse : plus de 25 s sous WebKit en intégration continue.
+    test.setTimeout(60_000);
     const oracle = await bonusUntilSpecial(page, bonusSeed('invert'));
     await eatSpecialCandy(page, oracle);
     await expect(page.locator('.hud-effect')).toBeVisible();
